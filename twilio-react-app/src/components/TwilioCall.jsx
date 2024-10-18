@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { FaPhone} from 'react-icons/fa6'
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { FaPhone } from "react-icons/fa6";
 
 const TwilioCall = () => {
   const [token, setToken] = useState(null);
   const [email, setEmail] = useState(null);
   const [callInProgress, setCallInProgress] = useState(false);
-  const [callerName, setCallerName] = useState('');
-  const [receiverNumber, setReceiverNumber] = useState('');
+  const [callerName, setCallerName] = useState("");
+  const [receiverNumber, setReceiverNumber] = useState("");
 
   // Function to get query parameter (email passed from Adalo)
   const getQueryParam = (param) => {
@@ -17,7 +17,7 @@ const TwilioCall = () => {
 
   useEffect(() => {
     // Get the email from the query string
-    const userEmail = getQueryParam('email');
+    const userEmail = getQueryParam("email");
     setEmail(userEmail);
     setCallerName(userEmail); // Set email as caller name
 
@@ -25,12 +25,16 @@ const TwilioCall = () => {
       // Fetch the Twilio token when the component loads
       const fetchToken = async () => {
         try {
-          const response = await axios.get('https://your-server-url.com/api/token', {
-            params: { email: userEmail },
-          });
+          const response = await axios.get(
+            "https://twilio-call-server.vercel.app/api/token",
+            {
+              params: { email: userEmail },
+            }
+          );
           setToken(response.data.token);
+          console.log(response.data.token);
         } catch (error) {
-          console.error('Error fetching token:', error);
+          console.error("Error fetching token:", error);
         }
       };
 
@@ -40,25 +44,29 @@ const TwilioCall = () => {
 
   const initiateCall = async () => {
     if (receiverNumber && token) {
+      onsole.log("Initiating call with:", { receiverNumber, token });
       try {
-        const response = await axios.post('https://your-server-url.com/api/make-call', {
-          to: receiverNumber,
-          from: '+YOUR_TWILIO_PHONE_NUMBER', // Replace with your Twilio number
-          callerName: callerName, // Include the caller's name
-        });
-        console.log('Call initiated:', response.data);
+        const response = await axios.post(
+          "https://twilio-call-server.vercel.app/api/make-call",
+          {
+            to: receiverNumber,
+            from: "+27683204951",
+            callerName: callerName,
+          }
+        );
+        console.log("Call response:", response.data);
         setCallInProgress(true);
       } catch (error) {
-        console.error('Error making call:', error);
+        console.error("Error making call:", error);
       }
     } else {
-      alert('Please provide a receiver number.');
+      alert("Please provide a receiver number.");
     }
   };
 
   const endCall = () => {
     // Logic to end the call can go here (not implemented in this version)
-    console.log('Ending call...');
+    console.log("Ending call...");
     setCallInProgress(false);
   };
 

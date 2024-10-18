@@ -44,21 +44,27 @@ app.get('/api/token', (req, res) => {
 
 // Endpoint to initiate a call
 app.post('/api/make-call', (req, res) => {
-  const { to, from, callerName } = req.body;
-  console.log('Request from Adalo:', req.body);
-
-  client.calls
-      .create({
-          to: to,
-          from: from,
-          url: `https://handler.twilio.com/twiml/EH9eb88eaea0d52d22fb0038266e2e7948?callerName=${encodeURIComponent(callerName)}&To=${encodeURIComponent(to)}`, 
-        })
-      .then(call => res.status(200).send({ callSid: call.sid }))
-      .catch(error => {
-          console.error('Error making call:', error);
-          res.status(500).send({ error: 'There was an issue making the call.' });
-      });
-});
+    const { to, from, callerName } = req.body;
+    console.log('Request from Adalo:', req.body);
+  
+    if (!to || !from || !callerName) {
+        console.error('Missing required fields: ', { to, from, callerName });
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+  
+    client.calls
+        .create({
+            to: to,
+            from: from,
+            url: `https://handler.twilio.com/twiml/EH9eb88eaea0d52d22fb0038266e2e7948?callerName=${encodeURIComponent(callerName)}&To=${encodeURIComponent(to)}`, 
+          })
+        .then(call => res.status(200).send({ callSid: call.sid }))
+        .catch(error => {
+            console.error('Error making call:', error);
+            res.status(500).send({ error: 'There was an issue making the call.' });
+        });
+  });
+  
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);

@@ -13,11 +13,6 @@ const apiKeySid = process.env.TWILIO_APIKEY_SID; // API Key SID for Twilio
 const apiKeySecret = process.env.TWILIO_APIKEY_SECRETE;
 const client = twilio(accountSid, authToken);
 
-if (!accountSid || !authToken || !apiKeySid || !apiKeySecret) {
-    console.error('Twilio credentials are not set properly in the .env file');
-    process.exit(1);
-}
-
 // Uncomment this to handle cross-origin requests if needed
 app.use(cors());
 app.use(express.json());

@@ -43,24 +43,41 @@ const TwilioCall = () => {
   }, []);
 
   const initiateCall = async () => {
-    if (receiverNumber && token) {
-      onsole.log("Initiating call with:", { receiverNumber, token });
-      try {
-        const response = await axios.post(
-          "https://twilio-call-server.vercel.app/api/make-call",
-          {
-            to: receiverNumber,
-            from: "+27683204951",
-            callerName: callerName,
-          }
-        );
-        console.log("Call response:", response.data);
-        setCallInProgress(true);
-      } catch (error) {
-        console.error("Error making call:", error);
+    // Log the current values of receiverNumber and token
+    console.log('Receiver Number:', receiverNumber);
+    console.log('Token:', token);
+  
+    // Check if the token is valid
+    if (!token) {
+      alert('Error: Missing authentication token. Please try again.');
+      return;
+    }
+  
+    // Check if the receiver number is provided
+    if (!receiverNumber) {
+      alert('Error: Please provide a receiver number.');
+      return;
+    }
+  
+    try {
+      const response = await axios.post('https://twilio-call-server.vercel.app/api/make-call', {
+        to: receiverNumber,
+        from: '+27683204951', // Replace with your Twilio number
+        callerName: callerName, // Include the caller's name
+      });
+  
+      console.log('Call initiated:', response.data);
+      setCallInProgress(true);
+    } catch (error) {
+      // Log the full error response for more information
+      console.error('Error making call:', error.response || error.message);
+      
+      // Provide a user-friendly error message based on the error response
+      if (error.response && error.response.data) {
+        alert(`Error: ${error.response.data.error || 'There was an issue making the call.'}`);
+      } else {
+        alert('Error: Unable to make the call. Please check your connection and try again.');
       }
-    } else {
-      alert("Please provide a receiver number.");
     }
   };
 

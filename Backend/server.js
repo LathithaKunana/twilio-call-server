@@ -24,11 +24,10 @@ app.use(express.json());
 
 app.get('/api/token', (req, res) => {
     const identity = req.query.email; // Use email as the identity
-    console.log("user id",  identity);
-
   
     // Check if the email parameter is provided
     if (!identity) {
+      console.error('No email parameter provided.');
       return res.status(400).json({ error: 'Email parameter is required.' });
     }
   
@@ -37,8 +36,9 @@ app.get('/api/token', (req, res) => {
   
     try {
       // Create an access token
-      const token = new AccessToken(accountSid, apiKeySid, apiKeySecret);
-      token.identity = identity; // Set the user's email as the token identity
+      const token = new AccessToken(accountSid, apiKeySid, apiKeySecret, {
+        identity: identity // Set the user's email as the token identity
+      });
   
       // Create a Voice grant and add it to the token
       const voiceGrant = new VoiceGrant({
@@ -54,6 +54,7 @@ app.get('/api/token', (req, res) => {
       res.status(500).json({ error: 'Internal Server Error' }); // Return a 500 error
     }
   });
+  
   
 
 // Endpoint to initiate a call

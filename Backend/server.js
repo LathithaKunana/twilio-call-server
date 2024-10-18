@@ -23,24 +23,38 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/token', (req, res) => {
-  const identity = req.query.email; // Use email as the identity
-  const AccessToken = twilio.jwt.AccessToken;
-  const VoiceGrant = AccessToken.VoiceGrant;
+    const identity = req.query.email; // Use email as the identity
+    console.log("user id",  identity);
 
-  // Create an access token
-  const token = new AccessToken(accountSid, apiKeySid, apiKeySecret);
-  token.identity = identity; // Set the user's email as the token identity
-
-  // Create a Voice grant and add it to the token
-  const voiceGrant = new VoiceGrant({
-      outgoingApplicationSid: 'AP0abf44b1624ac279caae9a4fba3a2b4d', // TwiML App SID
-      incomingAllow: true, // Allow incoming calls to this identity
+  
+    // Check if the email parameter is provided
+    if (!identity) {
+      return res.status(400).json({ error: 'Email parameter is required.' });
+    }
+  
+    const AccessToken = twilio.jwt.AccessToken;
+    const VoiceGrant = AccessToken.VoiceGrant;
+  
+    try {
+      // Create an access token
+      const token = new AccessToken(accountSid, apiKeySid, apiKeySecret);
+      token.identity = identity; // Set the user's email as the token identity
+  
+      // Create a Voice grant and add it to the token
+      const voiceGrant = new VoiceGrant({
+        outgoingApplicationSid: 'AP0abf44b1624ac279caae9a4fba3a2b4d', // TwiML App SID
+        incomingAllow: true, // Allow incoming calls to this identity
+      });
+      token.addGrant(voiceGrant);
+  
+      // Return the token to the client
+      res.json({ token: token.toJwt() });
+    } catch (error) {
+      console.error('Error generating token:', error); // Log the error for debugging
+      res.status(500).json({ error: 'Internal Server Error' }); // Return a 500 error
+    }
   });
-  token.addGrant(voiceGrant);
-
-  // Return the token to the client
-  res.json({ token: token.toJwt() });
-});
+  
 
 // Endpoint to initiate a call
 app.post('/api/make-call', (req, res) => {

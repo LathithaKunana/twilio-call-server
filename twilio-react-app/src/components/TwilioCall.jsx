@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { FaPhone } from "react-icons/fa6";
+import { Device } from "@twilio/voice-sdk";
 
 const TwilioCall = () => {
   const [token, setToken] = useState(null);
@@ -10,11 +11,20 @@ const TwilioCall = () => {
   const [receiverNumber, setReceiverNumber] = useState("");
   const [receiverName, setReceiverName] = useState("");
   const [receiverProfilePic, setReceiverProfilePic] = useState("");
+  const [device, setDevice] = useState(null);
+  const [currentCall, setCurrentCall] = useState(null);
 
   const getQueryParam = (param) => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(param);
   };
+
+  // Function to notify Adalo that call has ended
+  // const notifyAdaloCallEnded = () => {
+  //   if (window.parent) {
+  //     window.parent.postMessage({ type: 'CALL_ENDED' }, '*');
+  //   }
+  // };
 
   useEffect(() => {
     const userEmail = getQueryParam("email");
@@ -22,9 +32,9 @@ const TwilioCall = () => {
     const userProfilePic = getQueryParam("profilePic");
 
     setEmail(userEmail);
-    setCallerName(userEmail); // Set email as caller name
-    setReceiverName(userName); // Set receiver's name
-    setReceiverProfilePic(userProfilePic); // Set receiver's profile picture
+    setCallerName(userEmail);
+    setReceiverName(userName);
+    setReceiverProfilePic(userProfilePic);
 
     if (userEmail) {
       const fetchToken = async () => {
@@ -36,7 +46,7 @@ const TwilioCall = () => {
             }
           );
           setToken(response.data.token);
-          console.log(response.data.token);
+          initializeTwilioDevice(response.data.token);
         } catch (error) {
           console.error("Error fetching token:", error);
         }
@@ -46,17 +56,29 @@ const TwilioCall = () => {
     }
   }, []);
 
+  const initializeTwilioDevice = (token) => {
+    const newDevice = new Device(token);
+    
+    newDevice.on('disconnect', (call) => {
+      console.log('Call has been disconnected');
+      setCallInProgress(false);
+      setCurrentCall(null);
+      // notifyAdaloCallEnded();
+    });
+
+    newDevice.on('error', (error) => {
+      console.error('Twilio device error:', error);
+      setCallInProgress(false);
+      setCurrentCall(null);
+      // notifyAdaloCallEnded();
+    });
+
+    setDevice(newDevice);
+  };
+
   const initiateCall = async () => {
-    console.log("Receiver Number:", receiverNumber);
-    console.log("Token:", token);
-
-    if (!token) {
-      alert("Error: Missing authentication token. Please try again.");
-      return;
-    }
-
-    if (!receiverNumber) {
-      alert("Error: Please provide a receiver number.");
+    if (!token || !receiverNumber) {
+      alert(token ? "Please provide a receiver number." : "Missing authentication token.");
       return;
     }
 
@@ -72,23 +94,21 @@ const TwilioCall = () => {
 
       console.log("Call initiated:", response.data);
       setCallInProgress(true);
+      setCurrentCall(response.data.callSid);
+
     } catch (error) {
-      console.error("Error making call:", error.response || error.message);
-      if (error.response && error.response.data) {
-        alert(
-          `Error: ${
-            error.response.data.error || "There was an issue making the call."
-          }`
-        );
-      } else {
-        alert("Error: Unable to make the call. Please check your connection.");
-      }
+      console.error("Error making call:", error);
+      alert(error.response?.data?.error || "Unable to make the call. Please check your connection.");
     }
   };
 
   const endCall = () => {
-    console.log("Ending call...");
+    if (device && currentCall) {
+      device.disconnectAll();
+    }
     setCallInProgress(false);
+    setCurrentCall(null);
+    // notifyAdaloCallEnded();
   };
 
   return (

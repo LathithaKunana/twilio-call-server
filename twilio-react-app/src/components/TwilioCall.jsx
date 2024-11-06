@@ -13,28 +13,24 @@ const TwilioCall = () => {
   const [receiverProfilePic, setReceiverProfilePic] = useState("");
   const [device, setDevice] = useState(null);
   const [currentCall, setCurrentCall] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [isReceiver, setIsReceiver] = useState(false);
 
   const getQueryParam = (param) => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(param);
   };
 
-  // Function to notify Adalo that call has ended
-  // const notifyAdaloCallEnded = () => {
-  //   if (window.parent) {
-  //     window.parent.postMessage({ type: 'CALL_ENDED' }, '*');
-  //   }
-  // };
-
   useEffect(() => {
     const userEmail = getQueryParam("email");
     const userName = getQueryParam("name");
     const userProfilePic = getQueryParam("profilePic");
+    const receiver = getQueryParam("isReceiver");
 
     setEmail(userEmail);
-    setCallerName(userEmail);
-    setReceiverName(userName);
+    setCallerName(userName);
     setReceiverProfilePic(userProfilePic);
+    setIsReceiver(receiver === "true");
 
     if (userEmail) {
       const fetchToken = async () => {
@@ -57,20 +53,36 @@ const TwilioCall = () => {
   }, []);
 
   const initializeTwilioDevice = (token) => {
-    const newDevice = new Device(token);
+    const newDevice = new Device(token, {
+      // Enable incoming calls
+      enableRingingState: true,
+    });
     
+    // Handle incoming calls
+    newDevice.on('incoming', (call) => {
+      setIncomingCall(call);
+      
+      // Get custom parameters from the call
+      const callerInfo = call.customParameters.get('callerInfo');
+      if (callerInfo) {
+        const { name, profilePic } = JSON.parse(callerInfo);
+        setCallerName(name);
+        setReceiverProfilePic(profilePic);
+      }
+    });
+
     newDevice.on('disconnect', (call) => {
       console.log('Call has been disconnected');
       setCallInProgress(false);
       setCurrentCall(null);
-      // notifyAdaloCallEnded();
+      setIncomingCall(null);
     });
 
     newDevice.on('error', (error) => {
       console.error('Twilio device error:', error);
       setCallInProgress(false);
       setCurrentCall(null);
-      // notifyAdaloCallEnded();
+      setIncomingCall(null);
     });
 
     setDevice(newDevice);
@@ -83,34 +95,85 @@ const TwilioCall = () => {
     }
 
     try {
-      const response = await axios.post(
-        "https://twilio-call-server.vercel.app/api/make-call",
-        {
-          to: receiverNumber,
-          from: "+27683204951",
-          callerName: callerName,
-        }
-      );
+      // Include caller information in the call parameters
+      const call = await device.connect({
+        params: {
+          To: receiverNumber,
+          callerInfo: JSON.stringify({
+            name: callerName,
+            profilePic: receiverProfilePic,
+          }),
+        },
+      });
 
-      console.log("Call initiated:", response.data);
+      setCurrentCall(call);
       setCallInProgress(true);
-      setCurrentCall(response.data.callSid);
 
     } catch (error) {
       console.error("Error making call:", error);
-      alert(error.response?.data?.error || "Unable to make the call. Please check your connection.");
+      alert("Unable to make the call. Please check your connection.");
+    }
+  };
+
+  const acceptIncomingCall = () => {
+    if (incomingCall) {
+      incomingCall.accept();
+      setCallInProgress(true);
+      setCurrentCall(incomingCall);
+      setIncomingCall(null);
+    }
+  };
+
+  const rejectIncomingCall = () => {
+    if (incomingCall) {
+      incomingCall.reject();
+      setIncomingCall(null);
     }
   };
 
   const endCall = () => {
-    if (device && currentCall) {
-      device.disconnectAll();
+    if (currentCall) {
+      currentCall.disconnect();
     }
     setCallInProgress(false);
     setCurrentCall(null);
-    // notifyAdaloCallEnded();
   };
 
+  // Incoming call UI
+  if (incomingCall) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen bg-gray-900">
+        <div className="text-center">
+          {receiverProfilePic && (
+            <img
+              src={receiverProfilePic}
+              alt="Caller Profile"
+              className="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-white"
+            />
+          )}
+          <h1 className="text-white text-3xl font-bold mb-2">
+            Incoming Call from {callerName}
+          </h1>
+          <div className="flex space-x-4">
+            <button
+              onClick={acceptIncomingCall}
+              className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full"
+            >
+              <FaPhone className="mr-2" /> Accept
+            </button>
+            <button
+              onClick={rejectIncomingCall}
+              className="flex items-center justify-center bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-full"
+            >
+              <FaPhone className="mr-2" /> Reject
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular call UI (same as before)
   return (
     <div className="flex flex-col justify-center items-center h-screen bg-gray-900">
       {!callInProgress ? (
@@ -154,7 +217,7 @@ const TwilioCall = () => {
             />
           )}
           <h1 className="text-white text-3xl font-bold mb-2">
-            Call in Progress...
+            Call in Progress with {receiverName}
           </h1>
           <p className="text-white text-lg mb-8">{receiverNumber}</p>
 

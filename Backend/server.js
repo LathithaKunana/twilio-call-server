@@ -61,52 +61,43 @@ app.get('/api/token', (req, res) => {
 app.post('/voice', (req, res) => {
   const twiml = new VoiceResponse();
   
-  // Add detailed logging
   console.log('Voice webhook received - Full request:', {
       body: req.body,
-      headers: req.headers,
-      query: req.query
+      query: req.query,
+      params: req.params
   });
   
   try {
-      const to = req.body.To;
-      console.log('Destination number:', to);
+      // Get parameters from either query or body
+      const to = req.query.To || req.body.To;
+      const from = req.query.From || req.body.From;
+      const callerName = req.query.CallerName || req.body.CallerName;
+      
+      console.log('Call parameters:', { to, from, callerName });
 
       if (!to) {
           console.error('No destination number provided');
-          twiml.say('Thanks for calling! Please provide a valid destination.');
+          twiml.say('Please provide a valid destination number.');
           res.type('text/xml');
           return res.send(twiml.toString());
       }
 
-      // Handle browser-to-phone calls
-      if (!to.startsWith('client:')) {
-          const dial = twiml.dial({
-              callerId: process.env.TWILIO_PHONE_NUMBER,
-              answerOnBridge: true
-          });
-          
-          console.log('Dialing number:', to);
-          
-          dial.number({
+      // Set up the dial verb
+      const dial = twiml.dial({
+          callerId: process.env.TWILIO_PHONE_NUMBER,
+          answerOnBridge: true,
+          timeout: 30
+      });
+
+      // Add the number to dial
+      dial.number(
+          {
               statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
               statusCallback: `${process.env.BASE_URL}/call-status`
-          }, to);
-      }
-      // Handle browser-to-browser calls
-      else {
-          const dial = twiml.dial({
-              answerOnBridge: true
-          });
-          
-          console.log('Dialing client:', to.split(':')[1]);
-          
-          dial.client({
-              statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-              statusCallback: `${process.env.BASE_URL}/call-status`
-          }, to.split(':')[1]);
-      }
-      
+          },
+          to
+      );
+
       console.log('Generated TwiML:', twiml.toString());
       res.type('text/xml');
       res.send(twiml.toString());

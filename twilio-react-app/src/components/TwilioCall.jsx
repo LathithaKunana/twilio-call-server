@@ -54,38 +54,24 @@ const TwilioCall = () => {
 
   const initializeTwilioDevice = (token) => {
     const newDevice = new Device(token, {
-      // Enable incoming calls
       enableRingingState: true,
+      // Add debug mode to see detailed logs
+      debug: true
     });
     
-    // Handle incoming calls
-    newDevice.on('incoming', (call) => {
-      setIncomingCall(call);
-      
-      // Get custom parameters from the call
-      const callerInfo = call.customParameters.get('callerInfo');
-      if (callerInfo) {
-        const { name, profilePic } = JSON.parse(callerInfo);
-        setCallerName(name);
-        setReceiverProfilePic(profilePic);
-      }
-    });
-
-    newDevice.on('disconnect', (call) => {
-      console.log('Call has been disconnected');
-      setCallInProgress(false);
-      setCurrentCall(null);
-      setIncomingCall(null);
+    // Add connection listener to debug outgoing parameters
+    newDevice.on('connect', (connection) => {
+      console.log('Connection parameters:', connection.message.parameters);
     });
 
     newDevice.on('error', (error) => {
       console.error('Twilio device error:', error);
       setCallInProgress(false);
       setCurrentCall(null);
-      setIncomingCall(null);
     });
 
     setDevice(newDevice);
+  
   };
 
   const initiateCall = async () => {
@@ -95,44 +81,54 @@ const TwilioCall = () => {
     }
   
     try {
-      const params = {
-        // Format the phone number to E.164 format
-        To: receiverNumber.startsWith('+') ? receiverNumber : `+${receiverNumber}`,
-        From: process.env.REACT_APP_TWILIO_PHONE_NUMBER, // Add this to your .env file
-        callerInfo: JSON.stringify({
-          name: callerName,
-          profilePic: receiverProfilePic,
-        })
-      };
-  
-      const call = await device.connect({ params });
+      // Format the phone number to E.164 format
+      const formattedNumber = receiverNumber.startsWith('+') 
+        ? receiverNumber 
+        : `+${receiverNumber.replace(/\D/g, '')}`;
+
+      console.log('Initiating call to:', formattedNumber); // Debug log
+
+      const call = await device.connect({
+        params: {
+          // These parameters will be sent to your /voice webhook
+          To: formattedNumber,
+          From: "+27683204951",
+          // Add any custom parameters you need
+          callerName: callerName,
+          callerInfo: JSON.stringify({
+            name: callerName,
+            profilePic: receiverProfilePic,
+          })
+        }
+      });
       
-      call.on('accept', () => {
-        console.log('Call accepted');
+      // Add call listeners
+      call.on('accept', (connection) => {
+        console.log('Call accepted', connection);
         setCallInProgress(true);
       });
-  
+
       call.on('disconnect', () => {
-        console.log('Call ended');
+        console.log('Call disconnected');
         setCallInProgress(false);
         setCurrentCall(null);
       });
-  
+
       call.on('error', (error) => {
         console.error('Call error:', error);
         setCallInProgress(false);
         setCurrentCall(null);
       });
-  
+
       setCurrentCall(call);
       setCallInProgress(true);
-  
+
     } catch (error) {
       console.error("Error making call:", error);
       alert("Unable to make the call. Please check your connection.");
     }
   };
-  
+
   const acceptIncomingCall = () => {
     if (incomingCall) {
       incomingCall.accept();

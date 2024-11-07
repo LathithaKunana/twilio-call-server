@@ -4,105 +4,107 @@ require('dotenv').config();
 const cors = require('cors');
 const VoiceResponse = require('twilio').twiml.VoiceResponse;
 
-
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Twilio credentials from your Twilio console
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const apiKeySid = process.env.TWILIO_APIKEY_SID; // API Key SID for Twilio
-const apiKeySecret = process.env.TWILIO_APIKEY_SECRETE;
+const apiKeySid = process.env.TWILIO_APIKEY_SID;
+const apiKeySecret = process.env.TWILIO_APIKEY_SECRET;
+const twimlAppSid = process.env.TWILIO_TWIML_APP_SID; // Add this to your .env file
 const client = twilio(accountSid, authToken);
 
-if (!accountSid || !authToken || !apiKeySid || !apiKeySecret) {
+if (!accountSid || !authToken || !apiKeySid || !apiKeySecret || !twimlAppSid) {
     console.error('Twilio credentials are not set properly in the .env file');
     process.exit(1);
 }
 
-// Uncomment this to handle cross-origin requests if needed
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
+// Token generation endpoint
 app.get('/api/token', (req, res) => {
-    const identity = req.query.email; // Use email as the identity
+    const identity = req.query.email;
   
-    // Check if the email parameter is provided
     if (!identity) {
-      console.error('No email parameter provided.');
       return res.status(400).json({ error: 'Email parameter is required.' });
     }
   
-    const AccessToken = twilio.jwt.AccessToken;
-    const VoiceGrant = AccessToken.VoiceGrant;
-  
     try {
-      // Create an access token
+      const AccessToken = twilio.jwt.AccessToken;
+      const VoiceGrant = AccessToken.VoiceGrant;
+  
       const token = new AccessToken(accountSid, apiKeySid, apiKeySecret, {
-        identity: identity // Set the user's email as the token identity
+        identity: identity,
+        ttl: 3600 // Token expires in 1 hour
       });
   
-      // Create a Voice grant and add it to the token
       const voiceGrant = new VoiceGrant({
-        outgoingApplicationSid: 'AP0abf44b1624ac279caae9a4fba3a2b4d', // TwiML App SID
-        incomingAllow: true, // Allow incoming calls to this identity
+        outgoingApplicationSid: twimlAppSid,
+        incomingAllow: true
       });
+      
       token.addGrant(voiceGrant);
   
-      // Return the token to the client
       res.json({ token: token.toJwt() });
     } catch (error) {
-      console.error('Error generating token:', error); // Log the error for debugging
-      res.status(500).json({ error: 'Internal Server Error' }); // Return a 500 error
+      console.error('Error generating token:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
     }
-  });
-  
-// Handle incoming voice connections
-app.post('/voice', (req, res) => {
-  const twiml = new VoiceResponse();
-  const callerInfo = req.body.callerInfo ? JSON.parse(req.body.callerInfo) : null;
-
-  // Log incoming request for debugging
-  console.log('Voice webhook received:', req.body);
-
-  try {
-    if (req.body.To) {
-      const dial = twiml.dial({
-        callerId: process.env.TWILIO_PHONE_NUMBER,
-      });
-
-      // Handle browser-to-browser calls
-      if (req.body.To.startsWith('client:')) {
-        dial.client({
-          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-          statusCallback: `${process.env.BASE_URL}/call-status`,
-        }, req.body.To.split(':')[1]);
-      } 
-      // Handle browser-to-phone calls
-      else {
-        dial.number({
-          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-          statusCallback: `${process.env.BASE_URL}/call-status`,
-        }, req.body.To);
-      }
-    }
-
-    res.type('text/xml');
-    res.send(twiml.toString());
-  } catch (error) {
-    console.error('Error in /voice webhook:', error);
-    const errorResponse = new VoiceResponse();
-    errorResponse.say('An error occurred processing your call.');
-    res.type('text/xml');
-    res.send(errorResponse.toString());
-  }
 });
 
-// Add status callback endpoint
+// Voice webhook endpoint
+app.post('/voice', (req, res) => {
+    const twiml = new VoiceResponse();
+    
+    console.log('Voice webhook received:', req.body);
+    
+    try {
+        // Handle browser-to-phone calls
+        if (req.body.To && !req.body.To.startsWith('client:')) {
+            const dial = twiml.dial({
+                callerId: process.env.TWILIO_PHONE_NUMBER,
+                answerOnBridge: true, // This enables call bridging
+                record: 'record-from-answer' // Optional: records the call
+            });
+            
+            dial.number({
+                statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+                statusCallback: `${process.env.BASE_URL}/call-status`
+            }, req.body.To);
+        }
+        // Handle browser-to-browser calls
+        else if (req.body.To && req.body.To.startsWith('client:')) {
+            const dial = twiml.dial({
+                answerOnBridge: true
+            });
+            
+            dial.client({
+                statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+                statusCallback: `${process.env.BASE_URL}/call-status`
+            }, req.body.To.split(':')[1]);
+        }
+        // Default response if no valid 'To' parameter
+        else {
+            twiml.say('Thanks for calling! Please provide a valid destination.');
+        }
+        
+        res.type('text/xml');
+        res.send(twiml.toString());
+    } catch (error) {
+        console.error('Error in /voice webhook:', error);
+        const errorResponse = new VoiceResponse();
+        errorResponse.say('An error occurred processing your call.');
+        res.type('text/xml');
+        res.send(errorResponse.toString());
+    }
+});
+
+// Call status webhook
 app.post('/call-status', (req, res) => {
-  console.log('Call Status Update:', req.body);
-  // Here you can add logic to update your Adalo app about call status
-  res.sendStatus(200);
+    console.log('Call Status Update:', req.body);
+    res.sendStatus(200);
 });
 
 // Handle call status updates

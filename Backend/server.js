@@ -61,38 +61,51 @@ app.get('/api/token', (req, res) => {
 app.post('/voice', (req, res) => {
   const twiml = new VoiceResponse();
   const callerInfo = req.body.callerInfo ? JSON.parse(req.body.callerInfo) : null;
-  
-  if (req.body.To) {
-    const dial = twiml.dial({
-      callerId: process.env.TWILIO_PHONE_NUMBER,
-    });
 
-    // If it's a client (browser)
-    if (req.body.To.startsWith('client:')) {
-      dial.client({
-        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-        statusCallback: '/call-status',
-      }, req.body.To.split(':')[1]);
-    } else {
-      // If it's a regular phone number
-      dial.number({
-        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-        statusCallback: '/call-status',
-      }, req.body.To);
+  // Log incoming request for debugging
+  console.log('Voice webhook received:', req.body);
+
+  try {
+    if (req.body.To) {
+      const dial = twiml.dial({
+        callerId: process.env.TWILIO_PHONE_NUMBER,
+      });
+
+      // Handle browser-to-browser calls
+      if (req.body.To.startsWith('client:')) {
+        dial.client({
+          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+          statusCallback: `${process.env.BASE_URL}/call-status`,
+        }, req.body.To.split(':')[1]);
+      } 
+      // Handle browser-to-phone calls
+      else {
+        dial.number({
+          statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+          statusCallback: `${process.env.BASE_URL}/call-status`,
+        }, req.body.To);
+      }
     }
-  } else {
-    twiml.say('Thanks for calling!');
-  }
 
-  res.type('text/xml');
-  res.send(twiml.toString());
+    res.type('text/xml');
+    res.send(twiml.toString());
+  } catch (error) {
+    console.error('Error in /voice webhook:', error);
+    const errorResponse = new VoiceResponse();
+    errorResponse.say('An error occurred processing your call.');
+    res.type('text/xml');
+    res.send(errorResponse.toString());
+  }
+});
+
+// Add status callback endpoint
+app.post('/call-status', (req, res) => {
+  console.log('Call Status Update:', req.body);
+  // Here you can add logic to update your Adalo app about call status
+  res.sendStatus(200);
 });
 
 // Handle call status updates
-app.post('/call-status', (req, res) => {
-  console.log('Call Status Update:', req.body);
-  res.sendStatus(200);
-});
 
 
 // Endpoint to initiate a call

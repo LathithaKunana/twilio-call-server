@@ -59,55 +59,26 @@ app.get('/api/token', (req, res) => {
   
 // Voice webhook endpoint
 app.post('/voice', (req, res) => {
-  const twiml = new VoiceResponse();
+  console.log('Voice webhook received:', req.body);
   
-  console.log('Voice webhook received - Full request:', {
-      body: req.body,
-      query: req.query,
-      params: req.params
+  const twiml = new VoiceResponse();
+  const to = req.body.To;
+  const from = req.body.From;
+  const callerInfo = req.body.callerInfo;
+
+  if (!to) {
+    twiml.say('Please provide a valid destination number.');
+    return res.type('text/xml').send(twiml.toString());
+  }
+
+  const dial = twiml.dial({
+    callerId: from,
+    answerOnBridge: true
   });
   
-  try {
-      // Get parameters from either query or body
-      const to = req.query.To || req.body.To;
-      const from = req.query.From || req.body.From;
-      const callerName = req.query.CallerName || req.body.CallerName;
-      
-      console.log('Call parameters:', { to, from, callerName });
-
-      if (!to) {
-          console.error('No destination number provided');
-          twiml.say('Please provide a valid destination number.');
-          res.type('text/xml');
-          return res.send(twiml.toString());
-      }
-
-      // Set up the dial verb
-      const dial = twiml.dial({
-          callerId: process.env.TWILIO_PHONE_NUMBER,
-          answerOnBridge: true,
-          timeout: 30
-      });
-
-      // Add the number to dial
-      dial.number(
-          {
-              statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-              statusCallback: `${process.env.BASE_URL}/call-status`
-          },
-          to
-      );
-
-      console.log('Generated TwiML:', twiml.toString());
-      res.type('text/xml');
-      res.send(twiml.toString());
-  } catch (error) {
-      console.error('Error in /voice webhook:', error);
-      const errorResponse = new VoiceResponse();
-      errorResponse.say('An error occurred processing your call.');
-      res.type('text/xml');
-      res.send(errorResponse.toString());
-  }
+  dial.number(to);
+  
+  res.type('text/xml').send(twiml.toString());
 });
 
 // Add more detailed logging to the status callback

@@ -26,11 +26,13 @@ const TwilioCall = () => {
     const userName = getQueryParam("name");
     const userProfilePic = getQueryParam("profilePic");
     const receiver = getQueryParam("isReceiver");
+    const phoneNumber = getQueryParam("phoneNumber"); // Add this line to get phone number from URL
 
     setEmail(userEmail);
     setCallerName(userName);
     setReceiverProfilePic(userProfilePic);
     setIsReceiver(receiver === "true");
+    if (phoneNumber) setReceiverNumber(phoneNumber); // Set the receiver number if provided in URL
 
     if (userEmail) {
       const fetchToken = async () => {
@@ -38,7 +40,10 @@ const TwilioCall = () => {
           const response = await axios.get(
             "https://twilio-call-server.vercel.app/api/token",
             {
-              params: { email: userEmail },
+              params: { 
+                email: userEmail,
+                isReceiver: receiver === "true"
+              },
             }
           );
           setToken(response.data.token);
@@ -55,11 +60,17 @@ const TwilioCall = () => {
   const initializeTwilioDevice = (token) => {
     const newDevice = new Device(token, {
       enableRingingState: true,
-      // Add debug mode to see detailed logs
       debug: true
     });
     
-    // Add connection listener to debug outgoing parameters
+    // Handle incoming calls
+    newDevice.on('incoming', (call) => {
+      setIncomingCall(call);
+      // Extract caller info from parameters if available
+      const callerInfo = call.parameters.From || 'Unknown Caller';
+      setCallerName(callerInfo);
+    });
+
     newDevice.on('connect', (connection) => {
       console.log('Connection parameters:', connection.message.parameters);
     });
@@ -71,7 +82,6 @@ const TwilioCall = () => {
     });
 
     setDevice(newDevice);
-  
   };
 
   const initiateCall = async () => {
@@ -86,23 +96,22 @@ const TwilioCall = () => {
         ? receiverNumber 
         : `+${receiverNumber.replace(/\D/g, '')}`;
 
-      console.log('Initiating call to:', formattedNumber); // Debug log
+      console.log('Initiating call to:', formattedNumber);
 
       const call = await device.connect({
         params: {
-          // These parameters will be sent to your /voice webhook
           To: formattedNumber,
-          From: "+27683204951",
-          // Add any custom parameters you need
+          From: "+27683204951", // Replace with your Twilio phone number
           callerName: callerName,
+          callerEmail: email, // Add email to help with identification
           callerInfo: JSON.stringify({
             name: callerName,
+            email: email,
             profilePic: receiverProfilePic,
           })
         }
       });
       
-      // Add call listeners
       call.on('accept', (connection) => {
         console.log('Call accepted', connection);
         setCallInProgress(true);
@@ -153,7 +162,6 @@ const TwilioCall = () => {
     setCurrentCall(null);
   };
 
-  // Incoming call UI
   if (incomingCall) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-gray-900">
@@ -187,40 +195,37 @@ const TwilioCall = () => {
     );
   }
 
-  // Regular call UI (same as before)
   return (
     <div className="flex flex-col justify-center items-center h-screen bg-gray-900">
       {!callInProgress ? (
-        <>
-          <div className="text-center">
-            {receiverProfilePic && (
-              <img
-                src={receiverProfilePic}
-                alt="Receiver Profile"
-                className="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-white"
-              />
-            )}
-            <h1 className="text-white text-3xl font-bold mb-2">
-              {receiverName || "Unknown Receiver"}
-            </h1>
-            <p className="text-white text-lg mb-8">{receiverNumber}</p>
-
-            <input
-              type="tel"
-              placeholder="Enter the phone number to call"
-              value={receiverNumber}
-              onChange={(e) => setReceiverNumber(e.target.value)}
-              className="mb-4 p-2 w-80 text-black rounded-md border border-gray-300"
+        <div className="text-center">
+          {receiverProfilePic && (
+            <img
+              src={receiverProfilePic}
+              alt="Receiver Profile"
+              className="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-white"
             />
+          )}
+          <h1 className="text-white text-3xl font-bold mb-2">
+            {receiverName || "Unknown Receiver"}
+          </h1>
+          <p className="text-white text-lg mb-8">{receiverNumber}</p>
 
-            <button
-              onClick={initiateCall}
-              className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full"
-            >
-              <FaPhone className="mr-2" /> Call
-            </button>
-          </div>
-        </>
+          <input
+            type="tel"
+            placeholder="Enter the phone number to call"
+            value={receiverNumber}
+            onChange={(e) => setReceiverNumber(e.target.value)}
+            className="mb-4 p-2 w-80 text-black rounded-md border border-gray-300"
+          />
+
+          <button
+            onClick={initiateCall}
+            className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full"
+          >
+            <FaPhone className="mr-2" /> Call
+          </button>
+        </div>
       ) : (
         <div className="text-center">
           {receiverProfilePic && (

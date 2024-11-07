@@ -93,28 +93,46 @@ const TwilioCall = () => {
       alert(token ? "Please provide a receiver number." : "Missing authentication token.");
       return;
     }
-
+  
     try {
-      // Include caller information in the call parameters
-      const call = await device.connect({
-        params: {
-          To: receiverNumber,
-          callerInfo: JSON.stringify({
-            name: callerName,
-            profilePic: receiverProfilePic,
-          }),
-        },
+      const params = {
+        // Format the phone number to E.164 format
+        To: receiverNumber.startsWith('+') ? receiverNumber : `+${receiverNumber}`,
+        From: process.env.REACT_APP_TWILIO_PHONE_NUMBER, // Add this to your .env file
+        callerInfo: JSON.stringify({
+          name: callerName,
+          profilePic: receiverProfilePic,
+        })
+      };
+  
+      const call = await device.connect({ params });
+      
+      call.on('accept', () => {
+        console.log('Call accepted');
+        setCallInProgress(true);
       });
-
+  
+      call.on('disconnect', () => {
+        console.log('Call ended');
+        setCallInProgress(false);
+        setCurrentCall(null);
+      });
+  
+      call.on('error', (error) => {
+        console.error('Call error:', error);
+        setCallInProgress(false);
+        setCurrentCall(null);
+      });
+  
       setCurrentCall(call);
       setCallInProgress(true);
-
+  
     } catch (error) {
       console.error("Error making call:", error);
       alert("Unable to make the call. Please check your connection.");
     }
   };
-
+  
   const acceptIncomingCall = () => {
     if (incomingCall) {
       incomingCall.accept();

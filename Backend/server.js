@@ -61,38 +61,53 @@ app.get('/api/token', (req, res) => {
 app.post('/voice', (req, res) => {
   const twiml = new VoiceResponse();
   
-  console.log('Voice webhook received:', req.body);
+  // Add detailed logging
+  console.log('Voice webhook received - Full request:', {
+      body: req.body,
+      headers: req.headers,
+      query: req.query
+  });
   
   try {
+      const to = req.body.To;
+      console.log('Destination number:', to);
+
+      if (!to) {
+          console.error('No destination number provided');
+          twiml.say('Thanks for calling! Please provide a valid destination.');
+          res.type('text/xml');
+          return res.send(twiml.toString());
+      }
+
       // Handle browser-to-phone calls
-      if (req.body.To && !req.body.To.startsWith('client:')) {
+      if (!to.startsWith('client:')) {
           const dial = twiml.dial({
               callerId: process.env.TWILIO_PHONE_NUMBER,
-              answerOnBridge: true, // This enables call bridging
-              record: 'record-from-answer' // Optional: records the call
+              answerOnBridge: true
           });
+          
+          console.log('Dialing number:', to);
           
           dial.number({
               statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
               statusCallback: `${process.env.BASE_URL}/call-status`
-          }, req.body.To);
+          }, to);
       }
       // Handle browser-to-browser calls
-      else if (req.body.To && req.body.To.startsWith('client:')) {
+      else {
           const dial = twiml.dial({
               answerOnBridge: true
           });
           
+          console.log('Dialing client:', to.split(':')[1]);
+          
           dial.client({
               statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
               statusCallback: `${process.env.BASE_URL}/call-status`
-          }, req.body.To.split(':')[1]);
-      }
-      // Default response if no valid 'To' parameter
-      else {
-          twiml.say('Thanks for calling! Please provide a valid destination.');
+          }, to.split(':')[1]);
       }
       
+      console.log('Generated TwiML:', twiml.toString());
       res.type('text/xml');
       res.send(twiml.toString());
   } catch (error) {
@@ -104,9 +119,16 @@ app.post('/voice', (req, res) => {
   }
 });
 
-// Call status webhook
+// Add more detailed logging to the status callback
 app.post('/call-status', (req, res) => {
-  console.log('Call Status Update:', req.body);
+  console.log('Call Status Update:', {
+      callSid: req.body.CallSid,
+      callStatus: req.body.CallStatus,
+      to: req.body.To,
+      from: req.body.From,
+      timestamp: new Date().toISOString(),
+      fullBody: req.body
+  });
   res.sendStatus(200);
 });
 

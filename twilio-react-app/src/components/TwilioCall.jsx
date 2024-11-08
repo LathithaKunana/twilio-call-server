@@ -8,6 +8,7 @@ const TwilioCall = () => {
   const [email, setEmail] = useState(null);
   const [callInProgress, setCallInProgress] = useState(false);
   const [callerName, setCallerName] = useState("");
+  const [callSubject, setCallSubject] = useState(""); // New state variable for the call subject
   const [receiverNumber, setReceiverNumber] = useState("");
   const [receiverName, setReceiverName] = useState("");
   const [receiverProfilePic, setReceiverProfilePic] = useState("");
@@ -26,13 +27,15 @@ const TwilioCall = () => {
     const userName = getQueryParam("name");
     const userProfilePic = getQueryParam("profilePic");
     const receiver = getQueryParam("isReceiver");
-    const phoneNumber = getQueryParam("phoneNumber"); // Add this line to get phone number from URL
+    const phoneNumber = getQueryParam("phoneNumber");
+    const userSubject = getQueryParam("subject"); // Get the call subject from URL
 
     setEmail(userEmail);
     setCallerName(userName);
+    setCallSubject(userSubject); // Set the call subject state
     setReceiverProfilePic(userProfilePic);
     setIsReceiver(receiver === "true");
-    if (phoneNumber) setReceiverNumber(phoneNumber); // Set the receiver number if provided in URL
+    if (phoneNumber) setReceiverNumber(phoneNumber);
 
     if (userEmail) {
       const fetchToken = async () => {
@@ -63,10 +66,8 @@ const TwilioCall = () => {
       debug: true
     });
     
-    // Handle incoming calls
     newDevice.on('incoming', (call) => {
       setIncomingCall(call);
-      // Extract caller info from parameters if available
       const callerInfo = call.parameters.From || 'Unknown Caller';
       setCallerName(callerInfo);
     });
@@ -91,7 +92,6 @@ const TwilioCall = () => {
     }
   
     try {
-      // Format the phone number to E.164 format
       const formattedNumber = receiverNumber.startsWith('+') 
         ? receiverNumber 
         : `+${receiverNumber.replace(/\D/g, '')}`;
@@ -101,9 +101,9 @@ const TwilioCall = () => {
       const call = await device.connect({
         params: {
           To: formattedNumber,
-          From: "+27683204951", // Replace with your Twilio phone number
+          From: "+27683204951",
           callerName: callerName,
-          callerEmail: email, // Add email to help with identification
+          callerEmail: email,
           callerInfo: JSON.stringify({
             name: callerName,
             email: email,
@@ -176,6 +176,11 @@ const TwilioCall = () => {
           <h1 className="text-white text-3xl font-bold mb-2">
             Incoming Call from {callerName}
           </h1>
+          {callSubject && (
+            <p className="text-white text-lg font-medium mb-4">
+              Subject: {callSubject}
+            </p>
+          )}
           <div className="flex space-x-4">
             <button
               onClick={acceptIncomingCall}

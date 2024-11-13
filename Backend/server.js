@@ -58,56 +58,66 @@ app.get('/api/token', (req, res) => {
   });
   
 // Voice webhook endpoint
-const formatPhoneNumber = (phoneNumber) => {
-  // Remove any non-digit characters
-  let cleaned = phoneNumber.replace(/\D/g, '');
-  
-  // If number doesn't start with '+', add the '+' prefix
-  if (!cleaned.startsWith('+')) {
-    // If number starts with '0', replace it with '+27' (South Africa)
-    if (cleaned.startsWith('0')) {
-      cleaned = '27' + cleaned.substring(1);
-    }
-    // If number doesn't start with '27', add it
-    else if (!cleaned.startsWith('27')) {
-      cleaned = '27' + cleaned;
-    }
-  }
-  
-  return '+' + cleaned;
-};
+
 
 // Voice webhook endpoint
 app.post('/voice', (req, res) => {
-  console.log('Voice webhook received:', req.body);
+  console.log('Voice webhook received. Body:', req.body);
+  console.log('Voice webhook query:', req.query);
   
   const twiml = new VoiceResponse();
-  let to = req.body.To;
-  const from = req.body.From;
-  const callerInfo = req.body.callerInfo;
+  
+  // Try to get the number from different possible locations
+  let to = req.body.To || req.query.To;
+  let from = req.body.From || req.query.From || process.env.TWILIO_PHONE_NUMBER;
+  
+  // Debug logging
+  console.log('Extracted numbers:', { to, from });
+
+  // Format phone numbers
+  const formatPhoneNumber = (number) => {
+    if (!number) return null;
+    // Remove any non-digit characters
+    let cleaned = number.toString().replace(/\D/g, '');
+    
+    // Handle South African numbers
+    if (cleaned.startsWith('0')) {
+      cleaned = '27' + cleaned.substring(1);
+    } else if (!cleaned.startsWith('27')) {
+      cleaned = '27' + cleaned;
+    }
+    
+    return '+' + cleaned;
+  };
 
   try {
-    // Format the 'to' number if it exists
     if (to) {
-      to = formatPhoneNumber(to);
-      console.log('Formatted destination number:', to);
+      const formattedTo = formatPhoneNumber(to);
+      const formattedFrom = formatPhoneNumber(from);
       
+      console.log('Formatted numbers:', {
+        to: formattedTo,
+        from: formattedFrom
+      });
+
       const dial = twiml.dial({
-        callerId: formatPhoneNumber(from),
+        callerId: formattedFrom,
         answerOnBridge: true
       });
       
-      dial.number(to);
+      dial.number(formattedTo);
+      
+      console.log('Generated TwiML with dial:', twiml.toString());
     } else {
-      console.error('No destination number provided');
+      console.error('No destination number found in request');
       twiml.say('Please provide a valid destination number.');
+      console.log('Generated TwiML with error message:', twiml.toString());
     }
   } catch (error) {
-    console.error('Error in voice webhook:', error);
+    console.error('Error processing voice webhook:', error);
     twiml.say('An error occurred while processing your call.');
   }
 
-  console.log('Generated TwiML:', twiml.toString());
   res.type('text/xml').send(twiml.toString());
 });
 

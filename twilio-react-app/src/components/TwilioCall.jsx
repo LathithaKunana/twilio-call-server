@@ -72,28 +72,41 @@ const TwilioCall = () => {
   }, []);
 
   const initializeTwilioDevice = (token) => {
-    const newDevice = new Device(token, {
-      enableRingingState: true,
-      debug: true
-    });
-    
-    newDevice.on('incoming', (call) => {
-      setIncomingCall(call);
-      const callerInfo = call.parameters.From || 'Unknown Caller';
-      setCallerName(callerInfo);
-    });
+    try {
+      const newDevice = new Device(token, {
+        enableRingingState: true,
+        debug: true,
+        // Add edge parameter for better connectivity
+        edge: ['ashburn', 'dublin', 'singapore']
+      });
+      
+      newDevice.register(); // Important: Register the device
 
-    newDevice.on('connect', (connection) => {
-      console.log('Connection parameters:', connection.message.parameters);
-    });
+      newDevice.on('registered', () => {
+        console.log('Device registered successfully');
+      });
 
-    newDevice.on('error', (error) => {
-      console.error('Twilio device error:', error);
-      setCallInProgress(false);
-      setCurrentCall(null);
-    });
+      newDevice.on('incoming', (call) => {
+        setIncomingCall(call);
+        const callerInfo = call.parameters.From || 'Unknown Caller';
+        setCallerName(callerInfo);
+      });
 
-    setDevice(newDevice);
+      newDevice.on('connect', (connection) => {
+        console.log('Connection established:', connection);
+        setCallInProgress(true);
+      });
+
+      newDevice.on('error', (error) => {
+        console.error('Twilio device error:', error);
+        setCallInProgress(false);
+        setCurrentCall(null);
+      });
+
+      setDevice(newDevice);
+    } catch (error) {
+      console.error('Error initializing Twilio device:', error);
+    }
   };
 
   const initiateCall = async () => {
@@ -103,12 +116,23 @@ const TwilioCall = () => {
     }
   
     try {
+      if (!device || device.state !== "registered") {
+        console.error('Device not properly registered');
+        alert("Device not ready. Please try again in a moment.");
+        return;
+      }
+
       // Format the phone number
       const formattedNumber = receiverNumber.startsWith('+') 
         ? receiverNumber 
         : `+${receiverNumber.replace(/\D/g, '')}`;
   
-      console.log('Initiating call to:', formattedNumber);
+      console.log('Initiating call with parameters:', {
+        To: formattedNumber,
+        From: "+27683204951",
+        callerName,
+        email
+      });
   
       const call = await device.connect({
         params: {
@@ -116,8 +140,7 @@ const TwilioCall = () => {
           From: "+27683204951",
           callerName: callerName,
           callerEmail: email,
-          callerId: "+27683204951", // Add this
-          twiml: `<Response><Dial callerId="${"+27683204951"}">${formattedNumber}</Dial></Response>`, // Add this
+          // Remove redundant callerId and twiml parameters
           callerInfo: JSON.stringify({
             name: callerName,
             email: email,
@@ -126,13 +149,18 @@ const TwilioCall = () => {
         }
       });
       
+      // Add more detailed call event handling
+      call.on('ringing', () => {
+        console.log('Call is ringing');
+      });
+
       call.on('accept', (connection) => {
-        console.log('Call accepted', connection);
+        console.log('Call accepted:', connection);
         setCallInProgress(true);
       });
   
-      call.on('disconnect', () => {
-        console.log('Call disconnected');
+      call.on('disconnect', (connection) => {
+        console.log('Call disconnected:', connection);
         setCallInProgress(false);
         setCurrentCall(null);
       });
@@ -148,7 +176,7 @@ const TwilioCall = () => {
   
     } catch (error) {
       console.error("Error making call:", error);
-      alert("Unable to make the call. Please check your connection.");
+      alert(`Call failed: ${error.message}`);
     }
   };
 

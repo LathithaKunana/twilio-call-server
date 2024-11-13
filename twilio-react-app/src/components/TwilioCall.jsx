@@ -103,18 +103,21 @@ const TwilioCall = () => {
     }
   
     try {
+      // Format the phone number
       const formattedNumber = receiverNumber.startsWith('+') 
         ? receiverNumber 
         : `+${receiverNumber.replace(/\D/g, '')}`;
-
+  
       console.log('Initiating call to:', formattedNumber);
-
+  
       const call = await device.connect({
         params: {
           To: formattedNumber,
           From: "+27683204951",
           callerName: callerName,
           callerEmail: email,
+          callerId: "+27683204951", // Add this
+          twiml: `<Response><Dial callerId="${"+27683204951"}">${formattedNumber}</Dial></Response>`, // Add this
           callerInfo: JSON.stringify({
             name: callerName,
             email: email,
@@ -127,22 +130,22 @@ const TwilioCall = () => {
         console.log('Call accepted', connection);
         setCallInProgress(true);
       });
-
+  
       call.on('disconnect', () => {
         console.log('Call disconnected');
         setCallInProgress(false);
         setCurrentCall(null);
       });
-
+  
       call.on('error', (error) => {
         console.error('Call error:', error);
         setCallInProgress(false);
         setCurrentCall(null);
       });
-
+  
       setCurrentCall(call);
       setCallInProgress(true);
-
+  
     } catch (error) {
       console.error("Error making call:", error);
       alert("Unable to make the call. Please check your connection.");

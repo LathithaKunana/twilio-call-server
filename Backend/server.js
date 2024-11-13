@@ -22,6 +22,7 @@ if (!accountSid || !authToken || !apiKeySid || !apiKeySecret) {
 
 // Uncomment this to handle cross-origin requests if needed
 app.use(cors());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 app.get('/api/token', (req, res) => {
@@ -61,7 +62,14 @@ app.get('/api/token', (req, res) => {
 
 // Voice webhook endpoint
 app.post('/voice', (req, res) => {
+  // Parse both URL-encoded body and query parameters
+  const params = {
+    ...req.query,
+    ...req.body
+  };
+
   console.log('Voice webhook received:', {
+    params,
     body: req.body,
     query: req.query,
     headers: req.headers
@@ -70,11 +78,11 @@ app.post('/voice', (req, res) => {
   const twiml = new VoiceResponse();
   
   // Get parameters from both body and query
-  const to = req.body.To || req.query.To;
-  const from = req.body.From || req.query.From || process.env.TWILIO_PHONE_NUMBER;
-  const callerName = req.body.callerName || req.query.callerName;
+  // const to = req.body.To || req.query.To;
+  // const from = req.body.From || req.query.From || process.env.TWILIO_PHONE_NUMBER;
+  // const callerName = req.body.callerName || req.query.callerName;
   
-  console.log('Call parameters:', { to, from, callerName });
+  // console.log('Call parameters:', { to, from, callerName });
 
   const formatPhoneNumber = (number) => {
     if (!number) return null;
@@ -91,32 +99,47 @@ app.post('/voice', (req, res) => {
     return '+' + cleaned;
   };
 
+  
   try {
-    if (to) {
-      const formattedTo = formatPhoneNumber(to);
-      const formattedFrom = formatPhoneNumber(from);
-      
-      console.log('Formatted numbers:', {
-        to: formattedTo,
-        from: formattedFrom
-      });
+    // Get parameters, checking all possible locations
+    const to = params.To || params.to;
+    const from = params.From || params.from || process.env.TWILIO_PHONE_NUMBER;
+    const callerName = params.CallerName || params.callerName;
+    
+    console.log('Extracted call parameters:', { to, from, callerName });
 
-      const dial = twiml.dial({
-        callerId: formattedFrom,
-        answerOnBridge: true,
-        timeout: 20
-      });
-      
-      dial.number({
-        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-        statusCallback: `${process.env.BASE_URL}/call-status`
-      }, formattedTo);
-      
-      console.log('Generated TwiML:', twiml.toString());
-    } else {
+    if (!to) {
       console.error('No destination number found in request');
       twiml.say('Please provide a valid destination number.');
+      return res.type('text/xml').send(twiml.toString());
     }
+
+    const formattedTo = formatPhoneNumber(to);
+    const formattedFrom = formatPhoneNumber(from);
+    
+    console.log('Formatted numbers:', {
+      to: formattedTo,
+      from: formattedFrom
+    });
+
+    // Set up the dial verb with all necessary parameters
+    const dial = twiml.dial({
+      callerId: formattedFrom,
+      answerOnBridge: true,
+      timeout: 20
+    });
+    
+    // Add the number to dial with status callbacks
+    dial.number(
+      {
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+        statusCallback: `${process.env.BASE_URL}/call-status`
+      }, 
+      formattedTo
+    );
+    
+    console.log('Generated TwiML:', twiml.toString());
+    
   } catch (error) {
     console.error('Error in voice webhook:', error);
     twiml.say('An error occurred while processing your call.');

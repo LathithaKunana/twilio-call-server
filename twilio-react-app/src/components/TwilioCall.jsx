@@ -121,33 +121,35 @@ const TwilioCall = () => {
         alert("Device not ready. Please try again in a moment.");
         return;
       }
-
+  
       // Format the phone number
       const formattedNumber = receiverNumber.startsWith('+') 
         ? receiverNumber 
         : `+${receiverNumber.replace(/\D/g, '')}`;
   
-      console.log('Initiating call with parameters:', {
+      // Create URL-encoded parameters for TwiML
+      const twimlParams = new URLSearchParams({
         To: formattedNumber,
         From: "+27683204951",
-        callerName,
-        email
-      });
+        CallerName: callerName,
+        CallerEmail: email
+      }).toString();
+  
+      console.log('Initiating call with encoded parameters:', twimlParams);
   
       const call = await device.connect({
         params: {
+          // Pass parameters that will be sent to your webhook
           To: formattedNumber,
           From: "+27683204951",
-          callerName: callerName,
-          callerEmail: email,
-          // Remove redundant callerId and twiml parameters
-          callerInfo: JSON.stringify({
-            name: callerName,
-            email: email,
-            profilePic: receiverProfilePic,
-          })
+          CallerName: callerName,
+          CallerEmail: email,
+          // Add the TwiML URL with encoded parameters
+          twimlUrl: `${process.env.NEXT_PUBLIC_SERVER_URL}/voice?${twimlParams}`
         }
       });
+  
+      console.log('Call initiated with params:', call.customParameters);
       
       // Add more detailed call event handling
       call.on('ringing', () => {

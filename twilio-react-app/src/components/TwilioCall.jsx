@@ -132,25 +132,38 @@ const TwilioCall = () => {
         To: formattedNumber,
         From: "+27683204951",
         CallerName: callerName,
-        CallerEmail: email
+        CallerEmail: email,
+        CallSubject: callSubject, // Add call subject
+        // Add caller info as a JSON string
+        CallerInfo: JSON.stringify({
+          name: callerName,
+          email: email,
+          subject: callSubject,
+          profilePic: receiverProfilePic
+        })
       }).toString();
   
       console.log('Initiating call with encoded parameters:', twimlParams);
   
       const call = await device.connect({
         params: {
-          // Pass parameters that will be sent to your webhook
           To: formattedNumber,
           From: "+27683204951",
           CallerName: callerName,
           CallerEmail: email,
-          // Add the TwiML URL with encoded parameters
-          twimlUrl: `${process.env.NEXT_PUBLIC_SERVER_URL}/voice?${twimlParams}`
+          CallSubject: callSubject, // Add call subject here too
+          CallerInfo: JSON.stringify({
+            name: callerName,
+            email: email,
+            subject: callSubject,
+            profilePic: receiverProfilePic
+          }),
+          twimlUrl: `https://twilio-call-server.vercel.app/voice?${twimlParams}`
         }
       });
   
       console.log('Call initiated with params:', call.customParameters);
-      
+
       // Add more detailed call event handling
       call.on('ringing', () => {
         console.log('Call is ringing');

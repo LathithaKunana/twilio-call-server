@@ -62,7 +62,6 @@ app.get('/api/token', (req, res) => {
 
 // Voice webhook endpoint
 app.post('/voice', (req, res) => {
-  // Parse both URL-encoded body and query parameters
   const params = {
     ...req.query,
     ...req.body
@@ -101,12 +100,13 @@ app.post('/voice', (req, res) => {
 
   
   try {
-    // Get parameters, checking all possible locations
     const to = params.To || params.to;
     const from = params.From || params.from || process.env.TWILIO_PHONE_NUMBER;
     const callerName = params.CallerName || params.callerName;
+    const callSubject = params.CallSubject || params.callSubject;
+    const callerInfo = params.CallerInfo ? JSON.parse(params.CallerInfo) : null;
     
-    console.log('Extracted call parameters:', { to, from, callerName });
+    console.log('Extracted call parameters:', { to, from, callerName, callSubject, callerInfo });
 
     if (!to) {
       console.error('No destination number found in request');
@@ -116,24 +116,31 @@ app.post('/voice', (req, res) => {
 
     const formattedTo = formatPhoneNumber(to);
     const formattedFrom = formatPhoneNumber(from);
-    
-    console.log('Formatted numbers:', {
-      to: formattedTo,
-      from: formattedFrom
-    });
 
-    // Set up the dial verb with all necessary parameters
+    // Create a friendly caller ID name that includes the subject
+    const callerIdName = callSubject 
+      ? `${callerName} - ${callSubject}`
+      : callerName;
+
+    // Set up the dial verb with caller ID name
     const dial = twiml.dial({
       callerId: formattedFrom,
       answerOnBridge: true,
-      timeout: 20
+      timeout: 20,
+      callerName: callerIdName // This will show up on the receiver's phone
     });
     
-    // Add the number to dial with status callbacks
+    // Add the number to dial with additional parameters
     dial.number(
       {
         statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-        statusCallback: `${process.env.BASE_URL}/call-status`
+        statusCallback: `${process.env.BASE_URL}/call-status`,
+        // Pass the caller info in the statusCallback
+        statusCallbackParameters: JSON.stringify({
+          callerName,
+          callSubject,
+          callerInfo
+        })
       }, 
       formattedTo
     );

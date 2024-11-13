@@ -59,22 +59,23 @@ app.get('/api/token', (req, res) => {
   
 // Voice webhook endpoint
 
-
 // Voice webhook endpoint
 app.post('/voice', (req, res) => {
-  console.log('Voice webhook received. Body:', req.body);
-  console.log('Voice webhook query:', req.query);
+  console.log('Voice webhook received:', {
+    body: req.body,
+    query: req.query,
+    headers: req.headers
+  });
   
   const twiml = new VoiceResponse();
   
-  // Try to get the number from different possible locations
-  let to = req.body.To || req.query.To;
-  let from = req.body.From || req.query.From || process.env.TWILIO_PHONE_NUMBER;
+  // Get parameters from both body and query
+  const to = req.body.To || req.query.To;
+  const from = req.body.From || req.query.From || process.env.TWILIO_PHONE_NUMBER;
+  const callerName = req.body.callerName || req.query.callerName;
   
-  // Debug logging
-  console.log('Extracted numbers:', { to, from });
+  console.log('Call parameters:', { to, from, callerName });
 
-  // Format phone numbers
   const formatPhoneNumber = (number) => {
     if (!number) return null;
     // Remove any non-digit characters
@@ -102,19 +103,22 @@ app.post('/voice', (req, res) => {
 
       const dial = twiml.dial({
         callerId: formattedFrom,
-        answerOnBridge: true
+        answerOnBridge: true,
+        timeout: 20
       });
       
-      dial.number(formattedTo);
+      dial.number({
+        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+        statusCallback: `${process.env.BASE_URL}/call-status`
+      }, formattedTo);
       
-      console.log('Generated TwiML with dial:', twiml.toString());
+      console.log('Generated TwiML:', twiml.toString());
     } else {
       console.error('No destination number found in request');
       twiml.say('Please provide a valid destination number.');
-      console.log('Generated TwiML with error message:', twiml.toString());
     }
   } catch (error) {
-    console.error('Error processing voice webhook:', error);
+    console.error('Error in voice webhook:', error);
     twiml.say('An error occurred while processing your call.');
   }
 

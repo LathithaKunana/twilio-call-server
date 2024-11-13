@@ -225,6 +225,12 @@ const TwilioCall = () => {
           <h1 className="text-white text-3xl font-bold mb-2">
             {receiverName || "Unknown Receiver"} {/* This will now show the correct name */}
           </h1>
+          {/* Add subject display here */}
+          {callSubject && (
+            <p className="text-white text-xl mb-4">
+              Call Subject: {callSubject}
+            </p>
+          )}
           <p className="text-white text-lg mb-8">{receiverNumber}</p>
 
           <input

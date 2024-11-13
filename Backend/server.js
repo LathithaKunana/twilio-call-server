@@ -118,16 +118,16 @@ app.post('/voice', (req, res) => {
     const formattedFrom = formatPhoneNumber(from);
 
     // Create a friendly caller ID name that includes the subject
-    const callerIdName = callSubject 
-      ? `${callerName} - ${callSubject}`
-      : callerName;
+    // const callerIdName = callSubject 
+    //   ? `${callerName} - ${callSubject}`
+    //   : callerName;
 
     // Set up the dial verb with caller ID name
     const dial = twiml.dial({
       callerId: formattedFrom,
       answerOnBridge: true,
       timeout: 20,
-      callerName: callerIdName // This will show up on the receiver's phone
+      // callerName: callerIdName // This will show up on the receiver's phone
     });
     
     // Add the number to dial with additional parameters
@@ -136,12 +136,13 @@ app.post('/voice', (req, res) => {
         statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
         statusCallback: `${process.env.BASE_URL}/call-status`,
         // Pass the caller info in the statusCallback
-        statusCallbackParameters: JSON.stringify({
-          callerName,
-          callSubject,
-          callerInfo
+        // These parameters will be available in the incoming call event
+        callerId: formattedFrom,
+        customParameters: JSON.stringify({
+          callerName: callerName,
+          callSubject: callSubject
         })
-      }, 
+      },
       formattedTo
     );
     

@@ -117,34 +117,34 @@ app.post('/voice', (req, res) => {
     const formattedTo = formatPhoneNumber(to);
     const formattedFrom = formatPhoneNumber(from);
 
-    // Create a friendly caller ID name that includes the subject
-    // const callerIdName = callSubject 
-    //   ? `${callerName} - ${callSubject}`
-    //   : callerName;
-
-    // Set up the dial verb with caller ID name
+    // Create the dial verb
     const dial = twiml.dial({
       callerId: formattedFrom,
       answerOnBridge: true,
-      timeout: 20,
-      // callerName: callerIdName // This will show up on the receiver's phone
+      timeout: 20
     });
     
-    // Add the number to dial with additional parameters
-    dial.number(
-      {
-        statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-        statusCallback: `${process.env.BASE_URL}/call-status`,
-        // Pass the caller info in the statusCallback
-        // These parameters will be available in the incoming call event
-        callerId: formattedFrom,
-        customParameters: JSON.stringify({
-          callerName: callerName,
-          callSubject: callSubject
-        })
-      },
-      formattedTo
-    );
+    // Add the Client element with custom parameters
+    const client = dial.client();
+    client.identity(formattedTo);
+    
+    // Add custom parameters that will be displayed on the receiver's end
+    client.parameter({
+      name: 'callerName',
+      value: callerName || 'Unknown Caller'
+    });
+    
+    client.parameter({
+      name: 'callSubject',
+      value: callSubject || 'No Subject'
+    });
+
+    if (callerInfo) {
+      client.parameter({
+        name: 'callerInfo',
+        value: JSON.stringify(callerInfo)
+      });
+    }
     
     console.log('Generated TwiML:', twiml.toString());
     

@@ -16,6 +16,8 @@ const TwilioCall = () => {
   const [currentCall, setCurrentCall] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   const [isReceiver, setIsReceiver] = useState(false);
+  const [incomingCallerName, setIncomingCallerName] = useState("");
+  const [incomingCallSubject, setIncomingCallSubject] = useState("");
 
   const getQueryParam = (param) => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -38,14 +40,14 @@ const TwilioCall = () => {
     setIsReceiver(receiver === "true");
     if (phoneNumber) setReceiverNumber(phoneNumber);
 
-     // Debug logging
-     console.log('Query Parameters:', {
+    // Debug logging
+    console.log("Query Parameters:", {
       userEmail,
       userName,
       userProfilePic,
       receiver,
       phoneNumber,
-      userSubject
+      userSubject,
     });
 
     if (userEmail) {
@@ -54,9 +56,9 @@ const TwilioCall = () => {
           const response = await axios.get(
             "https://twilio-call-server.vercel.app/api/token",
             {
-              params: { 
+              params: {
                 email: userEmail,
-                isReceiver: receiver === "true"
+                isReceiver: receiver === "true",
               },
             }
           );
@@ -77,56 +79,73 @@ const TwilioCall = () => {
         enableRingingState: true,
         debug: true,
         // Add edge parameter for better connectivity
-        edge: ['ashburn', 'dublin', 'singapore']
+        edge: ["ashburn", "dublin", "singapore"],
       });
-      
+
       newDevice.register(); // Important: Register the device
 
-      newDevice.on('registered', () => {
-        console.log('Device registered successfully');
+      newDevice.on("registered", () => {
+        console.log("Device registered successfully");
       });
 
-      newDevice.on('incoming', (call) => {
+      
+
+      newDevice.on("incoming", (call) => {
         setIncomingCall(call);
-        const callerInfo = call.parameters.From || 'Unknown Caller';
-        setCallerName(callerInfo);
-      });
 
-      newDevice.on('connect', (connection) => {
-        console.log('Connection established:', connection);
+        try {
+          const customParameters = JSON.parse(call.customParameters);
+          setIncomingCallerName(customParameters.callerName || "Unknown Caller");
+          setIncomingCallSubject(customParameters.callSubject || "No Subject");
+        } catch (error) {
+          console.error('Error parsing custom parameters:', error);
+          setIncomingCallerName("Unknown Caller");
+          setIncomingCallSubject("No Subject");
+        }
+      });
+      //   const callerInfo = call.parameters.From || "Unknown Caller";
+      //   setCallerName(callerInfo);
+      // });
+
+      newDevice.on("connect", (connection) => {
+        console.log("Connection established:", connection);
         setCallInProgress(true);
       });
 
-      newDevice.on('error', (error) => {
-        console.error('Twilio device error:', error);
+      newDevice.on("error", (error) => {
+        console.error("Twilio device error:", error);
         setCallInProgress(false);
         setCurrentCall(null);
       });
 
       setDevice(newDevice);
     } catch (error) {
-      console.error('Error initializing Twilio device:', error);
+      console.error("Error initializing Twilio device:", error);
     }
   };
 
   const initiateCall = async () => {
     if (!token || !receiverNumber) {
-      alert(token ? "Please provide a receiver number." : "Missing authentication token.");
+      alert(
+        token
+          ? "Please provide a receiver number."
+          : "Missing authentication token."
+      );
       return;
     }
-  
+
     try {
       if (!device || device.state !== "registered") {
-        console.error('Device not properly registered');
+        console.error("Device not properly registered");
         alert("Device not ready. Please try again in a moment.");
         return;
       }
-  
+
       // Format the phone number
-      const formattedNumber = receiverNumber.startsWith('+') 
-        ? receiverNumber 
-        : `+${receiverNumber.replace(/\D/g, '')}`;
-  
+      const formattedNumber = receiverNumber.startsWith("+")
+        ? receiverNumber
+        : `+${receiverNumber.replace(/\D/g, "")}`;
+
       // Create URL-encoded parameters for TwiML
       const twimlParams = new URLSearchParams({
         To: formattedNumber,
@@ -139,12 +158,12 @@ const TwilioCall = () => {
           name: callerName,
           email: email,
           subject: callSubject,
-          profilePic: receiverProfilePic
-        })
+          profilePic: receiverProfilePic,
+        }),
       }).toString();
-  
-      console.log('Initiating call with encoded parameters:', twimlParams);
-  
+
+      console.log("Initiating call with encoded parameters:", twimlParams);
+
       const call = await device.connect({
         params: {
           To: formattedNumber,
@@ -156,39 +175,38 @@ const TwilioCall = () => {
             name: callerName,
             email: email,
             subject: callSubject,
-            profilePic: receiverProfilePic
+            profilePic: receiverProfilePic,
           }),
-          twimlUrl: `https://twilio-call-server.vercel.app/voice?${twimlParams}`
-        }
+          twimlUrl: `https://twilio-call-server.vercel.app/voice?${twimlParams}`,
+        },
       });
-  
-      console.log('Call initiated with params:', call.customParameters);
+
+      console.log("Call initiated with params:", call.customParameters);
 
       // Add more detailed call event handling
-      call.on('ringing', () => {
-        console.log('Call is ringing');
+      call.on("ringing", () => {
+        console.log("Call is ringing");
       });
 
-      call.on('accept', (connection) => {
-        console.log('Call accepted:', connection);
+      call.on("accept", (connection) => {
+        console.log("Call accepted:", connection);
         setCallInProgress(true);
       });
-  
-      call.on('disconnect', (connection) => {
-        console.log('Call disconnected:', connection);
+
+      call.on("disconnect", (connection) => {
+        console.log("Call disconnected:", connection);
         setCallInProgress(false);
         setCurrentCall(null);
       });
-  
-      call.on('error', (error) => {
-        console.error('Call error:', error);
+
+      call.on("error", (error) => {
+        console.error("Call error:", error);
         setCallInProgress(false);
         setCurrentCall(null);
       });
-  
+
       setCurrentCall(call);
       setCallInProgress(true);
-  
     } catch (error) {
       console.error("Error making call:", error);
       alert(`Call failed: ${error.message}`);
@@ -231,13 +249,11 @@ const TwilioCall = () => {
             />
           )}
           <h1 className="text-white text-3xl font-bold mb-2">
-            Incoming Call from {callerName}
+            Incoming Call from {incomingCallerName}
           </h1>
-          {callSubject && (
-            <p className="text-white text-lg font-medium mb-4">
-              Subject: {callSubject}
-            </p>
-          )}
+          <p className="text-white text-xl mb-4">
+            Subject: {incomingCallSubject}
+          </p>
           <div className="flex space-x-4">
             <button
               onClick={acceptIncomingCall}
@@ -269,7 +285,8 @@ const TwilioCall = () => {
             />
           )}
           <h1 className="text-white text-3xl font-bold mb-2">
-            {receiverName || "Unknown Receiver"} {/* This will now show the correct name */}
+            {receiverName || "Unknown Receiver"}{" "}
+            {/* This will now show the correct name */}
           </h1>
           {/* Add subject display here */}
           {callSubject && (

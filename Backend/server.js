@@ -58,90 +58,115 @@ app.get('/api/token', (req, res) => {
   });
   
 // Voice webhook endpoint
+const formatPhoneNumber = (phoneNumber) => {
+  // Remove any non-digit characters
+  let cleaned = phoneNumber.replace(/\D/g, '');
+  
+  // If number doesn't start with '+', add the '+' prefix
+  if (!cleaned.startsWith('+')) {
+    // If number starts with '0', replace it with '+27' (South Africa)
+    if (cleaned.startsWith('0')) {
+      cleaned = '27' + cleaned.substring(1);
+    }
+    // If number doesn't start with '27', add it
+    else if (!cleaned.startsWith('27')) {
+      cleaned = '27' + cleaned;
+    }
+  }
+  
+  return '+' + cleaned;
+};
+
+// Voice webhook endpoint
 app.post('/voice', (req, res) => {
   console.log('Voice webhook received:', req.body);
   
   const twiml = new VoiceResponse();
-  const to = req.body.To;
+  let to = req.body.To;
   const from = req.body.From;
   const callerInfo = req.body.callerInfo;
 
-  if (!to) {
-    twiml.say('Please provide a valid destination number.');
-    return res.type('text/xml').send(twiml.toString());
+  try {
+    // Format the 'to' number if it exists
+    if (to) {
+      to = formatPhoneNumber(to);
+      console.log('Formatted destination number:', to);
+      
+      const dial = twiml.dial({
+        callerId: formatPhoneNumber(from),
+        answerOnBridge: true
+      });
+      
+      dial.number(to);
+    } else {
+      console.error('No destination number provided');
+      twiml.say('Please provide a valid destination number.');
+    }
+  } catch (error) {
+    console.error('Error in voice webhook:', error);
+    twiml.say('An error occurred while processing your call.');
   }
 
-  const dial = twiml.dial({
-    callerId: from,
-    answerOnBridge: true
-  });
-  
-  dial.number(to);
-  
+  console.log('Generated TwiML:', twiml.toString());
   res.type('text/xml').send(twiml.toString());
 });
 
-// Add more detailed logging to the status callback
+// Add debugging to the call-status endpoint
 app.post('/call-status', (req, res) => {
   console.log('Call Status Update:', {
-      callSid: req.body.CallSid,
-      callStatus: req.body.CallStatus,
-      to: req.body.To,
-      from: req.body.From,
-      timestamp: new Date().toISOString(),
-      fullBody: req.body
+    callSid: req.body.CallSid,
+    callStatus: req.body.CallStatus,
+    to: req.body.To,
+    from: req.body.From,
+    timestamp: new Date().toISOString(),
+    direction: req.body.Direction,
+    error: req.body.ErrorCode ? {
+      code: req.body.ErrorCode,
+      message: req.body.ErrorMessage
+    } : null,
+    fullBody: req.body
   });
   res.sendStatus(200);
 });
 
-// Handle call status updates
-
-
-// Endpoint to initiate a call
+// Update the make-call endpoint to use formatted numbers
 app.post('/api/make-call', (req, res) => {
-    const { to, from, callerName } = req.body;
-    console.log('Request from Adalo:', req.body);
-  
-    if (!to || !from || !callerName) {
-        console.error('Missing required fields: ', { to, from, callerName });
-        return res.status(400).json({ error: 'Missing required fields' });
-    }
-  
-    client.calls
-        .create({
-            to: to,
-            from: from,
-            url: `https://handler.twilio.com/twiml/EH9eb88eaea0d52d22fb0038266e2e7948?callerName=${encodeURIComponent(callerName)}&To=${encodeURIComponent(to)}`, 
-          })
-        .then(call => res.status(200).send({ callSid: call.sid }))
-        .catch(error => {
-            console.error('Error making call:', error);
-            res.status(500).send({ error: 'There was an issue making the call.' });
-        });
+  const { to, from, callerName } = req.body;
+  console.log('Request to make call:', req.body);
+
+  if (!to || !from || !callerName) {
+    console.error('Missing required fields: ', { to, from, callerName });
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  // Format both numbers
+  const formattedTo = formatPhoneNumber(to);
+  const formattedFrom = formatPhoneNumber(from);
+
+  console.log('Formatted numbers:', {
+    to: formattedTo,
+    from: formattedFrom
   });
 
-  // Add this new endpoint to handle call status updates
-app.post('/api/call-ended', async (req, res) => {
-  const { userId, appId, status } = req.body;
-  
-  try {
-    // Make a request to your Adalo collection
-    const response = await axios.post(`https://api.adalo.com/v0/apps/${appId}/collections/CallStatus`, {
-      user_id: userId,
-      status: status,
-      timestamp: new Date().toISOString()
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.ADALO_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
+  client.calls
+    .create({
+      to: formattedTo,
+      from: formattedFrom,
+      url: `${process.env.BASE_URL}/voice`, // Use your actual voice endpoint URL
+      statusCallback: `${process.env.BASE_URL}/call-status`,
+      statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+    })
+    .then(call => {
+      console.log('Call initiated:', call.sid);
+      res.status(200).send({ callSid: call.sid });
+    })
+    .catch(error => {
+      console.error('Error making call:', error);
+      res.status(500).send({ 
+        error: 'There was an issue making the call.',
+        details: error.message 
+      });
     });
-    
-    res.status(200).json({ success: true });
-  } catch (error) {
-    console.error('Error updating Adalo:', error);
-    res.status(500).json({ error: 'Failed to update call status' });
-  }
 });
   
 

@@ -8,7 +8,7 @@ const TwilioCall = () => {
   const [email, setEmail] = useState(null);
   const [callInProgress, setCallInProgress] = useState(false);
   const [callerName, setCallerName] = useState("");
-  const [callSubject, setCallSubject] = useState(""); // New state variable for the call subject
+  const [callSubject, setCallSubject] = useState("");
   const [receiverNumber, setReceiverNumber] = useState("");
   const [receiverName, setReceiverName] = useState("");
   const [receiverProfilePic, setReceiverProfilePic] = useState("");
@@ -28,14 +28,25 @@ const TwilioCall = () => {
     const userProfilePic = getQueryParam("profilePic");
     const receiver = getQueryParam("isReceiver");
     const phoneNumber = getQueryParam("phoneNumber");
-    const userSubject = getQueryParam("subject"); // Get the call subject from URL
+    const userSubject = getQueryParam("subject");
 
     setEmail(userEmail);
     setCallerName(userName);
-    setCallSubject(userSubject); // Set the call subject state
+    setReceiverName(userName); // Add this line to set the receiver name
+    setCallSubject(userSubject);
     setReceiverProfilePic(userProfilePic);
     setIsReceiver(receiver === "true");
     if (phoneNumber) setReceiverNumber(phoneNumber);
+
+     // Debug logging
+     console.log('Query Parameters:', {
+      userEmail,
+      userName,
+      userProfilePic,
+      receiver,
+      phoneNumber,
+      userSubject
+    });
 
     if (userEmail) {
       const fetchToken = async () => {
@@ -212,7 +223,7 @@ const TwilioCall = () => {
             />
           )}
           <h1 className="text-white text-3xl font-bold mb-2">
-            {receiverName || "Unknown Receiver"}
+            {receiverName || "Unknown Receiver"} {/* This will now show the correct name */}
           </h1>
           <p className="text-white text-lg mb-8">{receiverNumber}</p>
 

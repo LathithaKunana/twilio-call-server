@@ -92,13 +92,40 @@ const TwilioCall = () => {
 
       newDevice.on("incoming", (call) => {
         setIncomingCall(call);
-
+        
+        // Log all parameters received
+        console.log("Incoming call parameters:", call.customParameters);
+        
         try {
-          const customParameters = JSON.parse(call.customParameters);
-          setIncomingCallerName(customParameters.callerName || "Unknown Caller");
-          setIncomingCallSubject(customParameters.callSubject || "No Subject");
+          // The parameters are now directly available in call.customParameters
+          const callerName = call.customParameters.callerName || "Unknown Caller";
+          const callSubject = call.customParameters.callSubject || "No Subject";
+          let callerInfo = null;
+          
+          // Try to parse callerInfo if it exists
+          if (call.customParameters.callerInfo) {
+            try {
+              callerInfo = JSON.parse(call.customParameters.callerInfo);
+            } catch (e) {
+              console.error('Error parsing callerInfo:', e);
+            }
+          }
+      
+          setIncomingCallerName(callerName);
+          setIncomingCallSubject(callSubject);
+          
+          if (callerInfo) {
+            // You can set additional caller information if needed
+            setReceiverProfilePic(callerInfo.profilePic || "");
+          }
+          
+          console.log("Processed incoming call details:", {
+            callerName,
+            callSubject,
+            callerInfo
+          });
         } catch (error) {
-          console.error('Error parsing custom parameters:', error);
+          console.error('Error processing custom parameters:', error);
           setIncomingCallerName("Unknown Caller");
           setIncomingCallSubject("No Subject");
         }
